@@ -10,7 +10,7 @@ data/
 *.h5ad
 *.h5
 *.csv.gz
-figures/
+/figures/
 
 # large prediction matrices if written outside data/
 *_preds_*.csv
