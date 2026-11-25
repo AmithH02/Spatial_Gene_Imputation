@@ -1,87 +1,98 @@
-# Gene imputation in MERFISH spatial transcriptomics (Tangram vs SpaGE)
+# Evaluating gene imputation in MERFISH spatial transcriptomics
 
-LIDo PhD rotation 2 (2025). How well can genes missing from a MERFISH panel be imputed from a scRNA-seq reference, and can we trust the uncertainty estimates? Two imputation methods, **Tangram** and **SpaGE**, are benchmarked by leave-one-gene-out (LOO) cross-validation on two mouse-brain cortex sections, and **TISSUE** is used to calibrate prediction intervals.
+Imaging-based spatial transcriptomics (MERFISH) measures gene expression in single cells in place, but only for a panel of a few hundred genes. Imputation methods fill in the missing genes using a single-cell RNA-seq reference. This project asks three questions:
 
-Write-up: *Evaluating Gene Imputation Algorithms in MERFISH Spatial Transcriptomics* (not in this repo).
+1. **Which method imputes better:** Tangram or SpaGE, the two top performers in recent benchmarks?
+2. **What makes a gene easy or hard to impute?**
+3. **Can we trust the uncertainty estimates** that TISSUE attaches to imputed values?
 
-## Layout
+Data: two MERFISH coronal sections of mouse cortex (D1: 19,441 cells x 464 shared genes; D2: 51,377 cells x 296 genes) and a 173,199-cell scRNA-seq reference.
+Method: leave-one-gene-out cross-validation. Each measured gene is hidden in turn, predicted from the rest, and compared with its measured expression.
 
-```
-notebooks/   01-04 analysis notebooks (thin: settings, function calls, figures, explanations)
-scripts/     headless runner for the slow LOO imputation step
-src/spatial_imputation/   reusable code (imported by both)
-tests/       unit tests for metrics, statistics and preprocessing
-results/     small outputs: per-gene metrics, significant gene lists
-data/        inputs and intermediate files (not tracked, see DATA.md)
-```
+*LIDo PhD rotation project, UCL (2025), supervised by Dr Mathieu Bourdenx and Prof. Kenneth Harris.*
 
-## Pipeline
+## Key findings
 
-| Notebook | What it does | Main outputs |
-|---|---|---|
-| `01_data_and_preprocessing` | Cortex filter, sequencing-depth comparison, log-normalisation, shared genes, sparsity | `data/processed_gene_data/*_{d1,d2}.h5ad` |
-| `02_loo_imputation` | Leave-one-gene-out predictions for every shared gene (Tangram cluster mode, SpaGE) | `data/predictions/tissue_{method}_preds_{dataset}.csv` |
-| `03_imputation_benchmark` | PCC, Spearman, RMSE, cosine, JS, SSIM; permutation significance (BH-FDR); Tangram vs SpaGE; D1 vs D2; Moran's I and sparsity as determinants | `results/gene_metrics.csv`, `results/significant_genes/` |
-| `04_uncertainty_calibration` | TISSUE spatial graph, conformal scores, 77% prediction intervals; does PI width track error? | figures |
+**Both methods recover real spatial patterns.** About 95% of genes are imputed significantly better than chance (cell-permutation test, FDR < 0.05) by both methods, and the two methods' significant gene sets overlap by ~97%.
 
-Run in order. 01 and 02 are slow and only need re-running if the inputs change; their outputs are cached in `data/`. 02 can also run without Jupyter:
+![Measured vs imputed expression of Cadm1](docs/figures/example_gene_cadm1.png)
 
-```bash
-python scripts/run_loo_imputation.py --dataset d1 --method tangram
-python scripts/run_loo_imputation.py --dataset d2 --method spage
-```
-
-## Code
-
-`src/spatial_imputation/`:
-
-| Module | Contents |
-|---|---|
-| `config` | data paths (`SGI_DATA_DIR`), dataset definitions and cortex-mask parameters |
-| `data` | loading, cortex filter, preprocessing, sparsity, loading predictions |
-| `imputation` | Tangram / SpaGE wrappers and the LOO loop |
-| `metrics` | per-gene metrics, sparsity-weighted score, score-vs-sparsity AUC |
-| `stats` | vectorised permutation test, Wilcoxon / Mann-Whitney comparisons, Moran's I, set overlap |
-| `uncertainty` | TISSUE calibration, error-vs-uncertainty reliability, quartile analysis |
-| `plotting` | all figures |
-
-Notebooks add `src/` to `sys.path` and `chdir` to the repo root, so they run from `notebooks/` or the root. Alternatively `pip install -e .`.
-
-## Setup
-
-```bash
-conda env create -f environment.yml        # env: spatial_imputation (installs this package + Tangram/TISSUE)
-conda activate spatial_imputation
-pytest                                     # unit tests (no data needed)
-```
-
-Notebook 03 and the tests only need the core dependencies; 01, 02 and 04 also need the `impute` extras (`tangram-sc==1.0.3`, `tissue-sc`, `squidpy`, `torch`).
-
-Data are not tracked. Put them in `data/` (or a symlink) or set `SGI_DATA_DIR`; see [DATA.md](DATA.md).
-
-## Main results
+**Neither method is best everywhere.** SpaGE scores higher on most metrics in D1 (most clearly SSIM: 0.65 vs 0.53), while Tangram is significantly better on all four metrics in D2 (paired Wilcoxon over genes).
 
 | | Tangram D1 | SpaGE D1 | Tangram D2 | SpaGE D2 |
 |---|---|---|---|---|
-| cells x genes | 19,441 x 464 | 19,441 x 464 | 51,377 x 296 | 51,377 x 296 |
-| mean PCC | 0.314 | 0.315 | 0.294 | 0.262 |
-| mean SSIM | 0.527 | 0.648 | 0.501 | 0.414 |
-| mean JS (lower = better) | 0.405 | 0.396 | 0.126 | 0.168 |
-| genes significant (FDR < 0.05) | 447 | 445 | 281 | 281 |
+| Pearson r | 0.314 | 0.315 | 0.294 | 0.262 |
+| Spearman ρ | 0.246 | 0.241 | 0.237 | 0.228 |
+| SSIM | 0.527 | 0.648 | 0.501 | 0.414 |
+| JS divergence (lower = better) | 0.405 | 0.396 | 0.126 | 0.168 |
+| Genes significant (FDR < 0.05) | 447 / 464 | 445 / 464 | 281 / 296 | 281 / 296 |
 
-- Neither method is better everywhere: SpaGE is ahead on most metrics in D1 (largest gap in SSIM), Tangram on all four in D2. ~96% of genes are imputed better than chance by both, with ~97% overlap.
-- How well a gene can be imputed depends mostly on its spatial structure: Moran's I correlates with accuracy (Spearman) at r ≈ 0.7 for both methods in both sections. Sparsity matters strongly in D1 but not in D2.
-- JS divergence follows gene sparsity almost exactly (r = 0.85-0.98), so it says more about the gene than the method.
-- TISSUE prediction-interval width barely tracks real error (D2: mean per-gene ρ(|error|, PI width) = 0.06 SpaGE, 0.11 Tangram), so its uncertainty is not a reliable guide for unmeasured genes.
+**Spatial structure, not sparsity, predicts how well a gene is imputed.** A gene's spatial autocorrelation (Moran's I) predicts imputation accuracy in both sections for both methods (r ≈ 0.67-0.72). Sparsity is strongly predictive in D1 (r ≈ −0.75) but not in D2, where sparsity and spatial structure are decoupled.
 
-## Notes and known caveats
+![Moran's I and sparsity vs imputation accuracy](docs/figures/imputability_determinants.png)
 
-- **Double normalisation of D2.** `SHG101350_processed.h5ad` is already log-normalised, but preprocessing applies `normalize_total` + `log1p` again (as in the original analysis). Correlation-based metrics are largely unaffected; RMSE and the absolute scale are. To fix, pass `normalize=False` for the spatial object of D2 and re-run 01-04.
-- **D2 sequencing depth in the report.** The write-up's D2 figure of "454.1 ± 54.5 UMIs per cell" is the sum of log-normalised values, not counts. The real counts (`obs['n_counts']`) are 1,736 ± 1,153 per cell, compared with 288 ± 207 for D1. So D2 is deeper, but its coverage is not more uniform. `data.counts_per_cell` now uses the count columns.
-- The cortex mask is an ellipse hand-tuned per section (`config.DATASETS`); it is not an anatomical annotation.
-- SSIM is the global (non-windowed) form on max-scaled vectors, matching the write-up.
-- The permutation test is seeded (`seed=0`) and vectorised; it reproduces the saved significant-gene lists exactly.
+**TISSUE's uncertainty barely tracks real error.** Per gene, the correlation between absolute error and prediction-interval width averages just 0.06 for SpaGE and 0.11 for Tangram (D2). The intervals are most reliable for abundant genes and least reliable for sparse ones, which are exactly the genes where uncertainty matters most.
 
-## History
+![Error vs prediction-interval width](docs/figures/uncertainty_reliability.png)
 
-The pre-refactor notebooks (`tangram_imputation`, `spage_imputation`, `tissue_imputation*`, `imputation_analysis*`, `combined_dataset_analysis`) are kept at tag `pre-refactor`. The refactor is on branch `refactor/src-layout`.
+## Repository layout
+
+```
+notebooks/                 01-04: the analysis, in order (thin: settings, function calls, figures)
+src/spatial_imputation/    reusable code imported by the notebooks and scripts
+scripts/                   headless runner for the slow imputation step
+tests/                     unit tests (metrics, statistics, preprocessing)
+results/                   per-gene metrics and significant gene lists
+docs/figures/              figures shown in this README
+data/                      inputs and intermediate files (not tracked, see DATA.md)
+```
+
+| Notebook | What it does | Outputs |
+|---|---|---|
+| [`01_data_and_preprocessing`](notebooks/01_data_and_preprocessing.ipynb) | Cortex filter, sequencing depth, log-normalisation, shared genes, sparsity | processed AnnData pairs |
+| [`02_loo_imputation`](notebooks/02_loo_imputation.ipynb) | Leave-one-gene-out predictions (Tangram cluster mode, SpaGE) | prediction matrices |
+| [`03_imputation_benchmark`](notebooks/03_imputation_benchmark.ipynb) | Six per-gene metrics, permutation significance, method and dataset comparisons, Moran's I | `results/gene_metrics.csv`, `results/significant_genes/` |
+| [`04_uncertainty_calibration`](notebooks/04_uncertainty_calibration.ipynb) | TISSUE conformal prediction intervals; does uncertainty track error? | figures |
+
+Notebooks 03 and 04 are shown with their outputs. 01 and 02 are the slow upstream steps (hours of GPU/CPU time for Tangram); their outputs are cached in `data/`.
+
+| Module | Contents |
+|---|---|
+| `config` | data paths (`SGI_DATA_DIR`), dataset definitions, cortex-mask parameters |
+| `data` | loading, cortex filter, preprocessing, sparsity, loading predictions |
+| `imputation` | Tangram / SpaGE wrappers and the leave-one-gene-out loop |
+| `metrics` | Pearson, Spearman, RMSE, cosine, Jensen-Shannon, SSIM; score-vs-sparsity AUC |
+| `stats` | vectorised permutation test with BH-FDR, Wilcoxon / Mann-Whitney comparisons, vectorised Moran's I |
+| `uncertainty` | TISSUE calibration, error-vs-uncertainty reliability, quartile analysis |
+| `plotting` | all figures |
+
+## Running it
+
+```bash
+conda env create -f environment.yml        # installs this package + Tangram / TISSUE
+conda activate spatial_imputation
+pytest                                     # unit tests, no data needed
+
+python scripts/run_loo_imputation.py --dataset d1 --method tangram   # slow imputation step, headless
+jupyter lab notebooks/                                                 # then run 03 and 04
+```
+
+Notebook 03 and the tests need only the core scientific Python stack. 01, 02 and 04 also need the `impute` extras (`tangram-sc`, `tissue-sc`, `squidpy`, `torch`). The data are not public and are not included; [DATA.md](DATA.md) describes the files and what other datasets are compatible.
+
+## Reproducibility and caveats
+
+- The refactored code reproduces the original analysis: identical per-gene metrics and test statistics, and identical significant-gene lists for all four conditions. The permutation test is seeded and vectorised.
+- **Double normalisation of D2.** The D2 spatial file is already log-normalised, and preprocessing normalises it again (as in the original analysis). Correlation-based metrics are largely unaffected; RMSE is not comparable across datasets. To change it, pass `normalize=False` for D2.
+- **Sequencing depth.** D2 has 1,736 ± 1,153 counts per cell vs 288 ± 207 for D1 (`obs` count columns). An earlier version of the report quoted 454 ± 55 for D2, which was a sum of log-normalised values.
+- The cortex mask is an ellipse tuned by eye per section (`config.DATASETS`), not an anatomical annotation.
+- SSIM is the global (non-windowed) form on max-scaled vectors.
+- TISSUE's calibration grouping (k-means) is not seeded, so uncertainty statistics vary slightly between runs.
+
+## References
+
+- Biancalani et al. (2021) Deep learning and alignment of spatially resolved single-cell transcriptomes with Tangram. *Nature Methods* 18, 1352-1362.
+- Abdelaal et al. (2020) SpaGE: Spatial Gene Enhancement using scRNA-seq. *Nucleic Acids Research* 48, e107.
+- Sun et al. (2024) TISSUE: uncertainty-calibrated prediction of single-cell spatial transcriptomics improves downstream analyses. *Nature Methods* 21, 444-454.
+- Li et al. (2022) Benchmarking spatial and single-cell transcriptomics integration methods for transcript distribution prediction and cell type deconvolution. *Nature Methods* 19, 662-670.
+
+The original exploratory notebooks are preserved at git tag [`pre-refactor`](../../tree/pre-refactor).
