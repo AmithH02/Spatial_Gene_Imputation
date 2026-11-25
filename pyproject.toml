@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spatial-imputation"
+version = "0.2.0"
+description = "Leave-one-gene-out benchmark of Tangram and SpaGE (via TISSUE) on MERFISH data, with TISSUE uncertainty calibration"
+requires-python = ">=3.9"
+dependencies = [
+    "anndata",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "plotly",
+    "scanpy",
+    "scikit-learn",
+    "scipy",
+    "seaborn",
+    "statsmodels",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# heavy imputation stack, only needed for notebooks 01, 02 and 04 and scripts/
+impute = ["tangram-sc==1.0.3", "tissue-sc>=1.0.0", "squidpy>=1.2.3", "torch"]
+dev = ["pytest", "jupyterlab", "ipykernel"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
