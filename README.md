@@ -77,6 +77,7 @@ Data are not tracked. Put them in `data/` (or a symlink) or set `SGI_DATA_DIR`; 
 ## Notes and known caveats
 
 - **Double normalisation of D2.** `SHG101350_processed.h5ad` is already log-normalised, but preprocessing applies `normalize_total` + `log1p` again (as in the original analysis). Correlation-based metrics are largely unaffected; RMSE and the absolute scale are. To fix, pass `normalize=False` for the spatial object of D2 and re-run 01-04.
+- **D2 sequencing depth in the report.** The write-up's D2 figure of "454.1 ± 54.5 UMIs per cell" is the sum of log-normalised values, not counts. The real counts (`obs['n_counts']`) are 1,736 ± 1,153 per cell, compared with 288 ± 207 for D1. So D2 is deeper, but its coverage is not more uniform. `data.counts_per_cell` now uses the count columns.
 - The cortex mask is an ellipse hand-tuned per section (`config.DATASETS`); it is not an anatomical annotation.
 - SSIM is the global (non-windowed) form on max-scaled vectors, matching the write-up.
 - The permutation test is seeded (`seed=0`) and vectorised; it reproduces the saved significant-gene lists exactly.

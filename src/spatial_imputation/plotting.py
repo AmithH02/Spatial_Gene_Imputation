@@ -58,9 +58,10 @@ def plot_cells(adata, title: str = "Cells kept after cortex filtering"):
 
 def plot_count_depth(spatial, reference):
     """Violin plot of transcripts per cell (log scale), spatial vs single-cell."""
-    sp_counts = (spatial.obs["transcript_count"].to_numpy() if "transcript_count" in spatial.obs
-                 else np.asarray(spatial.X.sum(axis=1)).ravel())
-    sc_counts = np.asarray(reference.X.sum(axis=1)).ravel()
+    from .data import counts_per_cell
+
+    sp_counts = counts_per_cell(spatial)
+    sc_counts = counts_per_cell(reference)
     df = pd.DataFrame({
         "counts": np.concatenate([sp_counts, sc_counts]),
         "dataset": ["Spatial"] * len(sp_counts) + ["Single-cell"] * len(sc_counts),

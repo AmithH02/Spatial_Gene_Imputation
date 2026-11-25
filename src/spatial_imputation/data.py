@@ -147,17 +147,26 @@ def sparsity_table(spatial, reference, genes=None) -> pd.DataFrame:
     return df
 
 
+COUNT_COLUMNS = ("transcript_count", "n_counts")
+
+
+def counts_per_cell(adata) -> np.ndarray:
+    """Raw transcripts per cell: ``obs['transcript_count']`` or ``obs['n_counts']`` if present.
+
+    Falls back to summing ``X``, which is only meaningful when ``X`` holds raw counts
+    (for D2, ``X`` is log-normalised, so summing it does not give counts).
+    """
+    for col in COUNT_COLUMNS:
+        if col in adata.obs:
+            return adata.obs[col].to_numpy(dtype=float)
+    return np.asarray(adata.X.sum(axis=1)).ravel()
+
+
 def dataset_summary(spatial, reference) -> pd.DataFrame:
-    """Cells, genes and transcripts-per-cell for the spatial section and the reference."""
-
-    def counts(adata, use_obs=None):
-        if use_obs and use_obs in adata.obs:
-            return adata.obs[use_obs].to_numpy(dtype=float)
-        return np.asarray(adata.X.sum(axis=1)).ravel()
-
+    """Cells, genes and raw counts per cell for the spatial section and the reference."""
     rows = {}
-    for name, adata, col in [("Spatial", spatial, "transcript_count"), ("Single-cell", reference, None)]:
-        c = counts(adata, col)
+    for name, adata in [("Spatial", spatial), ("Single-cell", reference)]:
+        c = counts_per_cell(adata)
         rows[name] = {
             "cells": adata.n_obs,
             "genes": adata.n_vars,

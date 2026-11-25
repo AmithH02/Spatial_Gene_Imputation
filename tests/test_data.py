@@ -35,3 +35,10 @@ def test_sparsity_table():
     b = ad.AnnData(np.zeros((2, 2)), var=pd.DataFrame({"sparsity": [0.5, 0.4]}, index=["g1", "g2"]))
     t = data.sparsity_table(a, b)
     np.testing.assert_allclose(t["sparsity_diff"].values, [0.3, 0.5])
+
+
+def test_counts_per_cell_prefers_obs_counts():
+    a = ad.AnnData(np.log1p(np.ones((3, 2))), obs=pd.DataFrame({"n_counts": [10.0, 20.0, 30.0]}))
+    np.testing.assert_allclose(data.counts_per_cell(a), [10, 20, 30])
+    b = ad.AnnData(np.ones((2, 3)))
+    np.testing.assert_allclose(data.counts_per_cell(b), [3, 3])
