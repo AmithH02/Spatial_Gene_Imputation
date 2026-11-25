@@ -15,7 +15,9 @@ Method: leave-one-gene-out cross-validation. Each measured gene is hidden in tur
 
 **Both methods recover real spatial patterns.** About 95% of genes are imputed significantly better than chance (cell-permutation test, FDR < 0.05) by both methods, and the two methods' significant gene sets overlap by ~97%.
 
-![Measured vs imputed expression of Cadm1](docs/figures/example_gene_cadm1.png)
+![Measured vs imputed expression of Fezf2](docs/figures/example_gene_fezf2.png)
+
+*Fezf2, a layer 5 marker in cortex (D1): both methods recover the laminar band from the other genes alone.*
 
 **Neither method is best everywhere.** SpaGE scores higher on most metrics in D1 (most clearly SSIM: 0.65 vs 0.53), while Tangram is significantly better on all four metrics in D2 (paired Wilcoxon over genes).
 

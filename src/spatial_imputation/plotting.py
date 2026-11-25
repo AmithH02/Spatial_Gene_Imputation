@@ -81,12 +81,14 @@ def plot_actual_vs_predicted(adata, gene: str, pred_keys=("tangram_predictions",
         (k.replace("_predictions", "").capitalize().replace("Spage", "SpaGE"), adata.obsm[k][gene].values)
         for k in pred_keys
     ]
-    fig, axes = plt.subplots(1, len(panels), figsize=(figsize_per * len(panels), figsize_per))
+    x, y = adata.obs[X_COL], adata.obs[Y_COL]
+    aspect = (y.max() - y.min()) / (x.max() - x.min())   # size panels to the tissue, no empty margins
+    fig, axes = plt.subplots(1, len(panels), figsize=(figsize_per * len(panels), figsize_per * aspect + 1),
+                             layout="constrained")
     for ax, (name, vals) in zip(axes, panels):
         title = name if not scores or name not in scores else f"{name} (r = {scores[name]:.2f})"
         spatial_scatter(ax, adata, display_values(vals), title=title, colorbar=False)
-    fig.suptitle(gene)
-    fig.tight_layout()
+    fig.suptitle(gene[:1].upper() + gene[1:], fontweight="bold")
     return fig
 
 
